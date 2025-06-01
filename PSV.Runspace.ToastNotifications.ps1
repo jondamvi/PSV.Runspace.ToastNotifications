@@ -31,7 +31,7 @@ $NotificationFunctionsDefs = {
     	PS > Confirm-WinRuntimeTypeLoaded -TypeName 'Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime'
     
     .LINK
-    	GitHub Repository: https://github.com/...
+    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
     #>
     Function Confirm-WinRuntimeTypeLoaded {
         [CmdletBinding()]
@@ -84,7 +84,7 @@ $NotificationFunctionsDefs = {
     	PS > Load-WinRuntimeType -TypeName 'Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime'
     
     .LINK
-    	GitHub Repository: https://github.com/...
+    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
     #>
     Function Load-WinRuntimeType {
         [CmdletBinding()]
@@ -135,7 +135,7 @@ $NotificationFunctionsDefs = {
     	PS > Confirm-WavFileType -FilePath "C:\Windows\Media\Ring05.wav"
     
     .LINK
-    	GitHub Repository: https://github.com/...
+    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
     #>
     Function Confirm-WavFileType {
         [CmdletBinding()]
@@ -191,7 +191,7 @@ $NotificationFunctionsDefs = {
     	PS > Confirm-PngFileType -FilePath "C:\Windows\ImmersiveControlPanel\images\Devices.png"
     
     .LINK
-    	GitHub Repository: https://github.com/...
+    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
     #>
     Function Confirm-PngFileType {
         [CmdletBinding()]
@@ -323,7 +323,7 @@ $NotificationFunctionsDefs = {
     Show-Notification @NotificationParams
     
     .LINK
-    	GitHub Repository: https://github.com/...
+    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
     #>
     Function Show-Notification {
         [CmdletBinding()]
@@ -470,7 +470,7 @@ $RunspaceFunctionsDefs = {
     	$Runspace = New-Runspace -Interactive $Interactive
     
     .LINK
-    	GitHub Repository: https://github.com/...
+    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
     #>
     Function New-Runspace {
         [CmdletBinding()]
@@ -516,7 +516,7 @@ $RunspaceFunctionsDefs = {
     	PS > New-Powershell -Runspace $Runspace
     
     .LINK
-    	GitHub Repository: https://github.com/...
+    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
     #>
     Function New-Powershell {
         [CmdletBinding()]
@@ -582,7 +582,7 @@ $RunspaceFunctionsDefs = {
         Add-PowershellScript -Powershell $Powershell -Scripts $Scripts
     
     .LINK
-    	GitHub Repository: https://github.com/...
+    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
     #>
     Function Add-PowershellScript {
         [CmdletBinding()]
@@ -645,7 +645,7 @@ $RunspaceFunctionsDefs = {
     	Run-Powershell -Powershell $Powershell -Timeout 300
     
     .LINK
-    	GitHub Repository: https://github.com/...
+    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
     #>
     Function Run-Powershell {
         [CmdletBinding()]
@@ -709,7 +709,7 @@ $RunspaceFunctionsDefs = {
     	Dispose-Powershell -Powershell $Powershell
     
     .LINK
-    	GitHub Repository: https://github.com/...
+    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
     #>
     Function Dispose-Powershell {
         [CmdletBinding()]
@@ -860,7 +860,7 @@ $RunspaceFunctionsDefs = {
         Output-RunspaceResult $result $Powershell -OutputLevel -1
 
     .LINK
-    	GitHub Repository: https://github.com/...
+    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
     #>
     Function Output-RunspaceResult {
         [CmdletBinding()]
@@ -1006,7 +1006,7 @@ $RunspaceFunctionsDefs = {
     	Open-Runspace -Runspace $Runspace
     
     .LINK
-    	GitHub Repository: https://github.com/...
+    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
     #>
     Function Open-Runspace {
         [CmdletBinding()]
@@ -1056,7 +1056,7 @@ $RunspaceFunctionsDefs = {
     	Add-RunspaceVariable -Runspace $Runspace -VariableName "Variable" -Variable $Variable
     
     .LINK
-    	GitHub Repository: https://github.com/...
+    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
     #>
     Function Add-RunspaceVariable {
         [CmdletBinding()]
@@ -1112,7 +1112,7 @@ $RunspaceFunctionsDefs = {
         Execute-InRunspace -Script $Script -Variables @(Get-Variable "Variable")
     
     .LINK
-    	GitHub Repository: https://github.com/...
+    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
     #>
     Function Execute-InRunspace {
         [CmdletBinding()]
