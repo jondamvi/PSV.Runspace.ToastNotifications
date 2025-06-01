@@ -470,7 +470,7 @@ $RunspaceFunctionsDefs = {
     	$Runspace = New-Runspace -Interactive $Interactive
     
     .LINK
-    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
+    	GitHub Repository: https://github.com/jondamvi/PSV.RunspaceTools
     #>
     Function New-Runspace {
         [CmdletBinding()]
@@ -478,13 +478,19 @@ $RunspaceFunctionsDefs = {
             [Parameter()]
             [switch]$Interactive = $false
         )
-        $initialSessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
-        $Runspace = [runspacefactory]::CreateRunspace($initialSessionState)
-        If ($Interactive) {
-            $Runspace.ApartmentState = [System.Threading.ApartmentState]::STA
-            $Runspace.ThreadOptions  = [System.Management.Automation.Runspaces.PSThreadOptions]::UseCurrentThread
+        Try {
+            $initialSessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+            $Runspace = [runspacefactory]::CreateRunspace($initialSessionState)
+            If ($Interactive) {
+                $Runspace.ApartmentState = [System.Threading.ApartmentState]::STA
+                $Runspace.ThreadOptions  = [System.Management.Automation.Runspaces.PSThreadOptions]::UseCurrentThread
+            }
+            return $Runspace
+        } Catch {
+            $ErrorMessage = "$($_.Exception.Message)`n$($_ | Format-List | Out-String)`nError Trace:`n$($_.ScriptStackTrace)"
+            Write-Error "Failed to create and configure Runspace: $ErrorMessage"
+            Throw $_
         }
-        return $Runspace
     }
 
     <#
@@ -516,7 +522,7 @@ $RunspaceFunctionsDefs = {
     	PS > New-Powershell -Runspace $Runspace
     
     .LINK
-    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
+    	GitHub Repository: https://github.com/jondamvi/PSV.RunspaceTools
     #>
     Function New-Powershell {
         [CmdletBinding()]
@@ -525,22 +531,29 @@ $RunspaceFunctionsDefs = {
             [ValidateNotNullOrEmpty()]
             [System.Management.Automation.Runspaces.Runspace]$Runspace
         )
-        $Powershell = [powershell]::Create()
-        $Powershell.Runspace = $Runspace
-        $Powershell.Streams.ClearStreams()
-        return $Powershell
+        Try {
+            $Powershell = [powershell]::Create()
+            $Powershell.Runspace = $Runspace
+            $Powershell.Streams.ClearStreams()
+            return $Powershell
+        } Catch {
+            $ErrorMessage = "$($_.Exception.Message)`n$($_ | Format-List | Out-String)`nError Trace:`n$($_.ScriptStackTrace)"
+            Write-Error "Failed create Powershell session: $ErrorMessage"
+            Throw $_
+        }
     }
 
     <#
     .SYNOPSIS
     	Title   : Function Add-PowershellScript
     	Author  : Jon Damvi
-    	Version : 1.0.0
+    	Version : 1.0.1
     	Date    : 01.06.2025
     	License : MIT (LICENSE)
     
     	Release Notes: 
     		v1.0.0 (01.06.2025) - initial release (by Jon Damvi).
+            v1.0.1 (01.06.2025) - Added Top-Level Try-Catch Block wrapping for every script added (by Jon Damvi).
     
     .DESCRIPTION
     	Adds scripts to Powershell object.
@@ -582,7 +595,7 @@ $RunspaceFunctionsDefs = {
         Add-PowershellScript -Powershell $Powershell -Scripts $Scripts
     
     .LINK
-    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
+    	GitHub Repository: https://github.com/jondamvi/PSV.RunspaceTools
     #>
     Function Add-PowershellScript {
         [CmdletBinding()]
@@ -595,30 +608,48 @@ $RunspaceFunctionsDefs = {
             [ValidateNotNullOrEmpty()]
             [Object]$Scripts
         )
-        If ($Scripts -is [ScriptBlock]) {
-            [void]$Powershell.AddScript($Scripts.ToString())
-        } ElseIf ($Scripts -is [string[]]) {
-            Foreach ($Script in $Scripts) {
-                [void]$Powershell.AddScript($Script)
+        $TopLevelTryCatchBlockOpen  = 'Try {'
+        $TopLevelTryCatchBlockClose = @'
+} Catch {
+    $ErrorMessage = "$($_.Exception.Message)`n$($_ | Format-List | Out-String)`nError Trace:`n$($_.ScriptStackTrace)"
+    Write-Error "Runspace script error: $ErrorMessage"
+    Throw $_
+}
+'@
+        Try {
+            # Then add the actual scripts
+            If ($Scripts -is [ScriptBlock]) {
+                $WrappedScript = $TopLevelTryCatchBlockOpen,$Scripts.ToString(),$TopLevelTryCatchBlockClose -join "`n"
+                [void]$Powershell.AddScript($WrappedScript)
+            } ElseIf ($Scripts.GetType().FullName -eq 'System.String[]') {
+                Foreach ($Script in $Scripts) {
+                    $WrappedScript = $TopLevelTryCatchBlockOpen,$Script,$TopLevelTryCatchBlockClose -join "`n"
+                    [void]$Powershell.AddScript($WrappedScript)
+                }
+            } ElseIf ($Scripts.GetType().FullName -eq 'System.String') {
+                $WrappedScript = $TopLevelTryCatchBlockOpen,$Scripts,$TopLevelTryCatchBlockClose -join "`n"
+                [void]$Powershell.AddScript($WrappedScript)
+            } Else {
+                Throw "Invalid input object type '$($Scripts.GetType().FullName)' for parameter 'Scripts'. Expected Types: [string], [string[]], [ScriptBlock]."
             }
-        } ElseIf ($Scripts -is [string]) {
-            [void]$Powershell.AddScript($Scripts)
-        } Else {
-            Throw "Invalid input object type '$($Script.GetType().FullName)' for parameter 'Script'. Expected Types: [string], [string[]], [ScriptBlock]."
+        } Catch {
+            $ErrorMessage = "$($_.Exception.Message)`n$($_ | Format-List | Out-String)`nError Trace:`n$($_.ScriptStackTrace)"
+            Write-Error "Failed to add script to Powershell session: $ErrorMessage"
+            Throw $_
         }
-        
     }
 
     <#
     .SYNOPSIS
     	Title   : Function Run-Powershell
     	Author  : Jon Damvi
-    	Version : 1.0.0
+    	Version : 1.0.1
     	Date    : 01.06.2025
     	License : MIT (LICENSE)
     
     	Release Notes: 
     		v1.0.0 (01.06.2025) - initial release (by Jon Damvi).
+            v1.0.1 (01.06.2025) - Improved logic to dispose objects on failure (by Jon Damvi).
     
     .DESCRIPTION
     	Executes Powershell asynchronously and waits for completion.
@@ -645,7 +676,7 @@ $RunspaceFunctionsDefs = {
     	Run-Powershell -Powershell $Powershell -Timeout 300
     
     .LINK
-    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
+    	GitHub Repository: https://github.com/jondamvi/PSV.RunspaceTools
     #>
     Function Run-Powershell {
         [CmdletBinding()]
@@ -660,22 +691,33 @@ $RunspaceFunctionsDefs = {
         )
         $result = $null
         $TimeoutMS = $Timeout * 1000
-
         [System.Diagnostics.Stopwatch]$ProcessExecTimer = [System.Diagnostics.Stopwatch]::StartNew()
-        $asyncResult = $Powershell.BeginInvoke()
+        Try {
+            $asyncResult = $Powershell.BeginInvoke()
+            While(($asyncResult.IsCompleted -ne $true) -And ($ProcessExecTimer.ElapsedMilliseconds -lt $TimeoutMS)) {
+                Start-Sleep -Milliseconds 1000
+            }
+            If ($ProcessExecTimer.ElapsedMilliseconds -ge $TimeoutMS) {
+                Write-Host "Timeout reached. Disposing Runspace/PowerShell objects." -ForegroundColor Yellow
+                # Operation exceeded allowed timeout and Runspace/Powershell objects will be disposed.
+            } Else {
+                # Collect all results
+                $result = $Powershell.EndInvoke($asyncResult)
 
-        While(($asyncResult.IsCompleted -ne $true) -And ($ProcessExecTimer.ElapsedMilliseconds -lt $TimeoutMS)) {
-            Start-Sleep -Milliseconds 1000
-        }
-        
-        If ($ProcessExecTimer.ElapsedMilliseconds -ge $TimeoutMS) {
+                If ($result) {
+                    return $result
+                } Else {
+                    Write-Error "Powershell Runspace execution failed. Returned result is null" -ForegroundColor Red
+                }
+            }
             $powershell.Stop()       # Request pipeline stop
             $powershell.Runspace.Close()        # Close runspace (terminates pipeline)
             $powershell.Runspace.Dispose()      # Dispose runspace
             $powershell.Dispose()    # Dispose PowerShell instance
-        } Else {
-            # Collect all results
-            $result = $Powershell.EndInvoke($asyncResult)
+        } Catch {
+            $ErrorMessage = "$($_.Exception.Message)`n$($_ | Format-List | Out-String)`nError Trace:`n$($_.ScriptStackTrace)"
+            Write-Error "Failed to execute PowerShell: $ErrorMessage"
+            Throw $_
         }
         $ProcessExecTimer.Stop() | Out-Null
         return $result
@@ -709,7 +751,7 @@ $RunspaceFunctionsDefs = {
     	Dispose-Powershell -Powershell $Powershell
     
     .LINK
-    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
+    	GitHub Repository: https://github.com/jondamvi/PSV.RunspaceTools
     #>
     Function Dispose-Powershell {
         [CmdletBinding()]
@@ -718,66 +760,13 @@ $RunspaceFunctionsDefs = {
             [ValidateNotNullOrEmpty()]
             [powershell]$Powershell
         )
-
         If ($null -eq $Powershell) { return }
-
-        $powershell.Stop()       # Request pipeline stop
-        $powershell.Runspace.Close()        # Close runspace (terminates pipeline)
-        $powershell.Runspace.Dispose()      # Dispose runspace
-        $powershell.Dispose()    # Dispose PowerShell instance
-
+        $powershell.Stop()             # Request pipeline stop
+        $powershell.Runspace.Close()   # Close runspace (terminates pipeline)
+        $powershell.Runspace.Dispose() # Dispose runspace
+        $powershell.Dispose()          # Dispose PowerShell instance
     }
 
-    <#
-    .SYNOPSIS
-    Outputs PowerShell runspace execution results with configurable logging levels.
-
-    .DESCRIPTION
-
-
-    .PARAMETER Result
-    The result object returned from PowerShell runspace execution.
-
-    .PARAMETER PowerShell
-    The PowerShell instance used for execution.
-
-    .PARAMETER OutputLevel
-    Log level (3=Error, 2=Warning, 1=Info, 0=Verbose, -1=Debug, -2=Trace). Default: 1 (Info)
-
-    .PARAMETER DisableOutput
-    Suppress standard output stream even if level permits it.
-
-    .PARAMETER DisableInfo  
-    Suppress information stream even if level permits it.
-
-    .PARAMETER DisableVerbose
-    Suppress verbose stream even if level permits it.
-
-    .PARAMETER DisableDebug
-    Suppress debug stream even if level permits it.
-
-    .PARAMETER DisableWarning
-    Suppress warning stream even if level permits it.
-
-    .PARAMETER DisableError
-    Suppress error stream (rarely needed).
-
-    .EXAMPLE
-    Output-RunspaceResult $result $ps
-    Shows info, warnings, errors, and output (default level 1).
-
-    .EXAMPLE  
-    Output-RunspaceResult $result $ps -OutputLevel 2
-    Shows only warnings and errors.
-
-    .EXAMPLE
-    Output-RunspaceResult $result $ps -OutputLevel 0 -DisableVerbose
-    Shows everything except verbose messages.
-
-    .EXAMPLE
-    Output-RunspaceResult $result $ps -OutputLevel -1
-    Shows everything including debug messages.
-    #>
     <#
     .SYNOPSIS
     	Title   : Function Output-RunspaceResult
@@ -860,7 +849,7 @@ $RunspaceFunctionsDefs = {
         Output-RunspaceResult $result $Powershell -OutputLevel -1
 
     .LINK
-    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
+    	GitHub Repository: https://github.com/jondamvi/PSV.RunspaceTools
     #>
     Function Output-RunspaceResult {
         [CmdletBinding()]
@@ -883,9 +872,7 @@ $RunspaceFunctionsDefs = {
             [switch]$DisableWarning,     # Disable warning stream
             [switch]$DisableError        # Disable error stream (rarely used)
         )
-    
         If ($null -eq $Result) { return }
-
         # Determine what streams to show based on output level and overrides
         $showOutput = ($OutputLevel -le 1) -and -not $DisableOutput      # Info and below
         $showInfo = ($OutputLevel -le 1) -and -not $DisableInfo          # Info and below  
@@ -893,9 +880,8 @@ $RunspaceFunctionsDefs = {
         $showDebug = ($OutputLevel -le -1) -and -not $DisableDebug       # Debug and below
         $showWarning = ($OutputLevel -le 2) -and -not $DisableWarning    # Warning and below
         $showError = ($OutputLevel -le 3) -and -not $DisableError        # Always (unless explicitly disabled)
-
         # Show header unless completely silent
-        if ($OutputLevel -le 2) {
+        If ($OutputLevel -le 2) {
             $levelName = switch ($OutputLevel) {
                  3 { "ERROR"   }
                  2 { "WARNING" }  
@@ -906,74 +892,73 @@ $RunspaceFunctionsDefs = {
             }
             Write-Host "=== RUNSPACE EXECUTION RESULTS (Level: $levelName) ===" -ForegroundColor Green
         }
-
-        # Standard Output Stream (Write-Output, return values)
-        if ($showOutput -and $Result -and $Result.Count -gt 0) {
-            Write-Host "Output Stream:" -ForegroundColor Cyan
-            $filteredOutput = $Result | Where-Object { 
-                $_ -ne $null -and ![string]::IsNullOrWhiteSpace($_.ToString()) 
-            }
-            if ($filteredOutput) {
-                $filteredOutput | % {
-                    Write-Host "  $($_)" -ForegroundColor White
+        Try {
+            # Standard Output Stream (Write-Output, return values)
+            If ($showOutput -and $Result -and $Result.Count -gt 0) {
+                Write-Host "Output Stream:" -ForegroundColor Cyan
+                $filteredOutput = $Result | Where-Object { 
+                    $_ -ne $null -and ![string]::IsNullOrWhiteSpace($_.ToString()) 
                 }
-            } else {
-                Write-Host "  (No meaningful output)" -ForegroundColor Gray
-            }
-        }
-
-        # PowerShell Output Stream (alternative access method)
-        if ($showOutput) {
-            $psOutput = $PowerShell.Streams.Output
-            if ($psOutput -and $psOutput.Count -gt 0) {
-                Write-Host "PowerShell Output Stream:" -ForegroundColor Cyan
-                $psOutput | % { 
-                    Write-Host "  $($_)" -ForegroundColor White
+                If ($filteredOutput) {
+                    $filteredOutput | % {
+                        Write-Host "  $($_)" -ForegroundColor White
+                    }
+                } Else {
+                    Write-Host "  (No meaningful output)" -ForegroundColor Gray
                 }
             }
-        }
-
-        # Information Stream (Write-Information, Write-Host in PS5+)
-        if ($showInfo -and $PowerShell.Streams.Information.Count -gt 0) {
-            Write-Host "Information Stream:" -ForegroundColor Cyan
-            $PowerShell.Streams.Information | % { 
-                Write-Host "  $($_.MessageData)" -ForegroundColor White 
-            }
-        }
-
-        # Verbose Stream (Write-Verbose)
-        if ($showVerbose -and $PowerShell.Streams.Verbose.Count -gt 0) {
-            Write-Host "Verbose Stream:" -ForegroundColor Cyan
-            $PowerShell.Streams.Verbose | % { 
-                Write-Host "  $($_.Message)" -ForegroundColor Gray
-            }
-        }
-
-        # Debug Stream (Write-Debug)
-        if ($showDebug -and $PowerShell.Streams.Debug.Count -gt 0) {
-            Write-Host "Debug Stream:" -ForegroundColor Cyan
-            $PowerShell.Streams.Debug | % { 
-                Write-Host "  $($_.Message)" -ForegroundColor DarkGray
-            }
-        }
-
-        # Warning Stream (Write-Warning)
-        if ($showWarning -and $PowerShell.Streams.Warning.Count -gt 0) {
-            Write-Host "Warning Stream:" -ForegroundColor Yellow
-            $PowerShell.Streams.Warning | % { 
-                Write-Host "  WARNING: $($_.Message)" -ForegroundColor Yellow
-            }
-        }
-
-        # Error Stream (Write-Error, exceptions)
-        if ($showError -and $PowerShell.Streams.Error.Count -gt 0) {
-            Write-Host "Error Stream:" -ForegroundColor Red
-            $PowerShell.Streams.Error | % { 
-                Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor Red
-                if ($OutputLevel -le 0) {  # Show stack trace at Verbose level and below
-                    Write-Host "    $($_.ScriptStackTrace)" -ForegroundColor DarkRed
+            # PowerShell Output Stream (alternative access method)
+            If ($showOutput) {
+                $psOutput = $PowerShell.Streams.Output
+                If ($psOutput -and $psOutput.Count -gt 0) {
+                    Write-Host "PowerShell Output Stream:" -ForegroundColor Cyan
+                    $psOutput | % { 
+                        Write-Host "  $($_)" -ForegroundColor White
+                    }
                 }
             }
+            # Information Stream (Write-Information, Write-Host in PS5+)
+            If ($showInfo -and $PowerShell.Streams.Information.Count -gt 0) {
+                Write-Host "Information Stream:" -ForegroundColor Cyan
+                $PowerShell.Streams.Information | % { 
+                    Write-Host "  $($_.MessageData)" -ForegroundColor White 
+                }
+            }
+            # Verbose Stream (Write-Verbose)
+            If ($showVerbose -and $PowerShell.Streams.Verbose.Count -gt 0) {
+                Write-Host "Verbose Stream:" -ForegroundColor Cyan
+                $PowerShell.Streams.Verbose | % { 
+                    Write-Host "  $($_.Message)" -ForegroundColor Gray
+                }
+            }
+            # Debug Stream (Write-Debug)
+            If ($showDebug -and $PowerShell.Streams.Debug.Count -gt 0) {
+                Write-Host "Debug Stream:" -ForegroundColor Cyan
+                $PowerShell.Streams.Debug | % { 
+                    Write-Host "  $($_.Message)" -ForegroundColor DarkGray
+                }
+            }
+            # Warning Stream (Write-Warning)
+            If ($showWarning -and $PowerShell.Streams.Warning.Count -gt 0) {
+                Write-Host "Warning Stream:" -ForegroundColor Yellow
+                $PowerShell.Streams.Warning | % { 
+                    Write-Host "  WARNING: $($_.Message)" -ForegroundColor Yellow
+                }
+            }
+            # Error Stream (Write-Error, exceptions)
+            If ($showError -and $PowerShell.Streams.Error.Count -gt 0) {
+                Write-Host "Error Stream:" -ForegroundColor Red
+                $PowerShell.Streams.Error | % { 
+                    Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor Red
+                    If ($OutputLevel -le 0) {  # Show stack trace at Verbose level and below
+                        Write-Host "    $($_.ScriptStackTrace)" -ForegroundColor DarkRed
+                    }
+                }
+            }
+        } Catch {
+            $ErrorMessage = "$($_.Exception.Message)`n$($_ | Format-List | Out-String)`nError Trace:`n$($_.ScriptStackTrace)"
+            Write-Error "Failed read output streams: $ErrorMessage"
+            Throw $_
         }
     }
 
@@ -1006,7 +991,7 @@ $RunspaceFunctionsDefs = {
     	Open-Runspace -Runspace $Runspace
     
     .LINK
-    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
+    	GitHub Repository: https://github.com/jondamvi/PSV.RunspaceTools
     #>
     Function Open-Runspace {
         [CmdletBinding()]
@@ -1015,7 +1000,13 @@ $RunspaceFunctionsDefs = {
             [ValidateNotNullOrEmpty()]
             [System.Management.Automation.Runspaces.Runspace]$Runspace
         )
-        $Runspace.Open()
+        Try {
+            $Runspace.Open()
+        } Catch {
+            $ErrorMessage = "$($_.Exception.Message)`n$($_ | Format-List | Out-String)`nError Trace:`n$($_.ScriptStackTrace)"
+            Write-Error "Failed to open Runspace: $ErrorMessage"
+            Throw $_
+        }
     }
 
     <#
@@ -1056,7 +1047,7 @@ $RunspaceFunctionsDefs = {
     	Add-RunspaceVariable -Runspace $Runspace -VariableName "Variable" -Variable $Variable
     
     .LINK
-    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
+    	GitHub Repository: https://github.com/jondamvi/PSV.RunspaceTools
     #>
     Function Add-RunspaceVariable {
         [CmdletBinding()]
@@ -1073,18 +1064,25 @@ $RunspaceFunctionsDefs = {
             [ValidateNotNullOrEmpty()]
             [Object]$Variable
         )
-        $Runspace.SessionStateProxy.SetVariable($VariableName, $Variable)
+        Try {
+            $Runspace.SessionStateProxy.SetVariable($VariableName, $Variable)
+        } Catch {
+            $ErrorMessage = "$($_.Exception.Message)`n$($_ | Format-List | Out-String)`nError Trace:`n$($_.ScriptStackTrace)"
+            Write-Error "Failed to add variable '$VariableName': $ErrorMessage"
+            Throw $_
+        }
     }
 
     <#
     .SYNOPSIS
     	Title   : Function Execute-InRunspace
     	Author  : Jon Damvi
-    	Version : 1.0.0
+    	Version : 1.1.0
     	Date    : 01.06.2025
     	License : MIT (LICENSE)
     
     	Release Notes: 
+    		v1.1.0 (01.06.2025) - Added preference variable parameters (by Jon Damvi).
     		v1.0.0 (01.06.2025) - initial release (by Jon Damvi).
     
     .DESCRIPTION
@@ -1099,6 +1097,21 @@ $RunspaceFunctionsDefs = {
     	(Optional) Specifies variables to include in New Runspace.
     	Expected type: [PSVariable[]]
     
+    .PARAMETER RunspaceVerbosePreference
+    	(Optional) Sets VerbosePreference in runspace.
+    	Expected type: [System.Management.Automation.ActionPreference]
+    	Default Value: SilentlyContinue
+    
+    .PARAMETER RunspaceDebugPreference
+    	(Optional) Sets DebugPreference in runspace.
+    	Expected type: [System.Management.Automation.ActionPreference]
+    	Default Value: SilentlyContinue
+    
+    .PARAMETER RunspaceWarningPreference
+    	(Optional) Sets WarningPreference in runspace.
+    	Expected type: [System.Management.Automation.ActionPreference]
+    	Default Value: Continue
+    
     .INPUTS
     	None
     
@@ -1111,8 +1124,16 @@ $RunspaceFunctionsDefs = {
         $Script = { Write-Host $Variable }
         Execute-InRunspace -Script $Script -Variables @(Get-Variable "Variable")
     
+    .EXAMPLE
+    	# Execute with verbose output enabled:
+        Execute-InRunspace $Script $Variables -RunspaceVerbose Continue
+    
+    .EXAMPLE
+    	# Execute with error action set to stop:
+        Execute-InRunspace $Script $Variables -RunspaceError Stop
+    
     .LINK
-    	GitHub Repository: https://github.com/jondamvi/PSV.Runspace.ToastNotifications/
+    	GitHub Repository: https://github.com/jondamvi/PSV.RunspaceTools
     #>
     Function Execute-InRunspace {
         [CmdletBinding()]
@@ -1121,27 +1142,34 @@ $RunspaceFunctionsDefs = {
             [ValidateNotNullOrEmpty()]
             [Object]$Script,
 
-            [System.Management.Automation.PSVariable[]]$Variables
+            [System.Management.Automation.PSVariable[]]$Variables,
+
+            [Alias('RunspaceVerbose')]
+            [System.Management.Automation.ActionPreference]$RunspaceVerbosePreference = 'SilentlyContinue',
+
+            [Alias('RunspaceDebug')]
+            [System.Management.Automation.ActionPreference]$RunspaceDebugPreference = 'SilentlyContinue',
+
+            [Alias('RunspaceWarning')]
+            [System.Management.Automation.ActionPreference]$RunspaceWarningPreference = 'Continue'
         )
-
         $runspace = New-Runspace -Interactive
-
         Open-Runspace $runspace
 
-        If($Variables) {
+        # Add preference variables to runspace
+        Add-RunspaceVariable $runspace 'VerbosePreference' $RunspaceVerbosePreference
+        Add-RunspaceVariable $runspace 'DebugPreference' $RunspaceDebugPreference
+        Add-RunspaceVariable $runspace 'WarningPreference' $RunspaceWarningPreference
+        
+        If ($Variables) {
             Foreach ($Variable in $Variables) {
                 Add-RunspaceVariable $runspace $Variable.Name $Variable.Value
             }
         }
-        
         $powershell = New-Powershell $runspace
-
         Add-PowershellScript $powershell $Script
-
         $result = Run-Powershell $powershell
-
         Output-RunspaceResult $result $powershell
-
         Dispose-Powershell $powershell
     }
 }
